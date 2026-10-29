@@ -1,0 +1,70 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage[margin=2.5cm]{geometry}
+
+\graphicspath{{figures/}}
+
+\title{Micro-réseau intelligent : prévision de la consommation et de la production solaire, tarification dynamique}
+\author{Dev A \and Dev B \and Dev C}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+% Résumé du projet en quelques lignes.
+\end{abstract}
+
+\tableofcontents
+
+\section{Introduction}
+% Contexte des smart grids, objectifs, contributions.
+
+\section{Données}
+\subsection{London Smart Meters}
+% Description, période, nombre de foyers, nettoyage.
+\subsection{Irradiance solaire}
+% Source, variables, conversion en production PV.
+
+\section{Méthodologie}
+\subsection{Prévision de consommation : régression linéaire (Dev A)}
+% Variables calendaires, retards, régularisation.
+\subsection{Prévision solaire : LSTM (Dev B)}
+% Architecture, fenêtre temporelle, entraînement.
+\subsection{Agent de tarification : réseau dense (Dev C)}
+% État, sortie, fonction cible, entraînement.
+\subsection{Environnement de simulation}
+% Bilan énergétique, batterie, élasticité prix.
+
+\section{Résultats}
+\begin{table}[h]
+\centering
+\begin{tabular}{lcccc}
+\toprule
+Modèle & MAE & RMSE & MAPE (\%) & $R^2$ \\
+\midrule
+Régression linéaire & & & & \\
+LSTM solaire & & & & \\
+\bottomrule
+\end{tabular}
+\caption{Performances des modèles de prévision sur le jeu de test.}
+\end{table}
+
+% \begin{figure}[h]
+%   \centering
+%   \includegraphics[width=\textwidth]{simulation.png}
+%   \caption{Simulation du micro-réseau.}
+% \end{figure}
+
+\section{Discussion}
+% Limites, pistes d'amélioration.
+
+\section{Conclusion}
+
+\end{document}
