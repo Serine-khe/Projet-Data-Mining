@@ -1,4 +1,22 @@
-"""Chargement des données brutes (London Smart Meters, irradiance solaire)."""
+"""Chargement des données brutes (London Smart Meters, irradiance solaire).
+
+==============================================================================
+PROMPT — code fonctionnel, à ADAPTER aux vrais fichiers téléchargés
+==============================================================================
+Serine — ``load_london_smart_meters`` : télécharger le jeu « Smart Meter Energy
+  Consumption Data in London Households », le placer dans
+  data/raw/london_smart_meters/, vérifier les noms de colonnes et le format des
+  dates. Le jeu complet est très gros : prévoir un sous-ensemble de foyers
+  (paramètre nrows ou filtre sur LCLid).
+Hadjer — ``load_solar_irradiance`` : choisir le jeu d'irradiance (idéalement
+  Londres, même période que la consommation), le placer dans
+  data/raw/solar_irradiance/ et renommer ses colonnes en ``timestamp``, ``ghi``,
+  ``temperature``. S'il n'y a pas de colonne ``pv_power``, la calculer à partir
+  de l'irradiance (puissance installée config.MICROGRID["pv_capacity_kw"]).
+Ne jamais modifier les fichiers de data/raw : écrire les versions nettoyées
+dans data/processed/.
+==============================================================================
+"""
 from pathlib import Path
 
 import pandas as pd

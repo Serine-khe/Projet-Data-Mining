@@ -1,6 +1,19 @@
 """Démonstration Streamlit du micro-réseau intelligent.
 
 Lancer depuis la racine du projet : ``streamlit run app/demo.py``
+
+==============================================================================
+PROMPT — livrable « démonstration », à compléter par l'équipe à la fin
+==============================================================================
+La base actuelle compare un prix fixe et l'agent dense sur des données
+synthétiques. À ajouter :
+  Serine — un onglet « Consommation » : courbe prévision vs réel, métriques.
+  Hadjer — un onglet « Solaire » : courbe prévision vs réel, métriques.
+  Asma   — l'onglet « Simulation » : utiliser les vraies données de test
+           (data/processed) au lieu de generate_synthetic_data, expliquer
+           comment le prix réagit.
+Astuce : st.tabs(["Consommation", "Solaire", "Simulation"]).
+==============================================================================
 """
 import sys
 from pathlib import Path

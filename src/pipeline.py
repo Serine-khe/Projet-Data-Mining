@@ -1,4 +1,18 @@
-"""Enchaînement des 3 modèles : consommation (A) + solaire (B) -> tarification (C) -> simulation."""
+"""Enchaînement des 3 modèles : consommation (A) + solaire (B) -> tarification (C) -> simulation.
+
+==============================================================================
+PROMPT — fichier d'intégration, responsable : Asma (avec relecture de l'équipe)
+==============================================================================
+Ce fichier est déjà écrit : il appelle les interfaces des trois modèles. Il
+fonctionnera dès que linear_regression.py, lstm_solar.py, pricing_dense.py et
+microgrid_env.py seront implémentés. À faire :
+  - Lancer ``python -m src.pipeline`` puis ``python -m src.pipeline --real-data``.
+  - Si une interface change, mettre ce fichier à jour (en accord avec Serine et Hadjer).
+  - Les états d'entraînement de l'agent utilisent un SoC tiré au hasard :
+    Asma peut le remplacer par les SoC obtenus en simulation.
+  - Reporter les métriques affichées dans le rapport.
+==============================================================================
+"""
 import argparse
 
 import numpy as np

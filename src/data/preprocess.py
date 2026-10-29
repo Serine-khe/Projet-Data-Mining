@@ -1,4 +1,16 @@
-"""Nettoyage et rééchantillonnage des données."""
+"""Nettoyage et rééchantillonnage des données.
+
+==============================================================================
+PROMPT — code fonctionnel, à AJUSTER selon les résultats de l'EDA
+==============================================================================
+Serine — ``clean_consumption`` / ``aggregate_consumption`` : décider, d'après le
+  notebook 01, comment traiter les valeurs manquantes, aberrantes et les foyers
+  incomplets (seuils, interpolation, exclusion). Documenter les choix.
+Hadjer — ``clean_solar`` : idem pour l'irradiance (notebook 02) : valeurs
+  négatives, nuits, trous de mesure, changement d'heure.
+``train_test_split_time`` : partagé, ne pas remplacer par un découpage aléatoire.
+==============================================================================
+"""
 import numpy as np
 import pandas as pd
 

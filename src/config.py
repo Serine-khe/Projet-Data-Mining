@@ -17,14 +17,14 @@ RANDOM_SEED = 42
 FREQ = "h"            # pas de temps après rééchantillonnage
 TEST_SIZE = 0.2       # proportion test (découpage chronologique)
 
-# --- Dev A : régression linéaire (consommation) ----------------------------
+# --- Dev A (Serine) : régression linéaire (consommation) ----------------------------
 LINEAR_REGRESSION = {
     "lags": [1, 2, 3, 24, 168],   # heures
     "rolling_windows": [24],
     "alpha": 1.0,                  # régularisation Ridge (0 = OLS)
 }
 
-# --- Dev B : LSTM (solaire) ------------------------------------------------
+# --- Dev B (Hadjer) : LSTM (solaire) ------------------------------------------------
 LSTM_SOLAR = {
     "seq_len": 24,
     "hidden_size": 64,
@@ -37,7 +37,7 @@ LSTM_SOLAR = {
     "target": "pv_power",
 }
 
-# --- Dev C : agent de tarification (réseau dense) --------------------------
+# --- Dev C (Asma) : agent de tarification (réseau dense) --------------------------
 PRICING_DENSE = {
     "hidden_sizes": [64, 32],
     "lr": 1e-3,

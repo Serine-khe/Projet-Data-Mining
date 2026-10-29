@@ -4,9 +4,9 @@ Prévision et pilotage d'un micro-réseau électrique intelligent à l'aide de t
 
 | Modèle | Rôle | Responsable | Fichier |
 |---|---|---|---|
-| Régression linéaire | Prévision de la consommation des foyers (London Smart Meters) | Dev A | `src/models/linear_regression.py` |
-| LSTM | Prévision de la production solaire à partir de l'irradiance | Dev B | `src/models/lstm_solar.py` |
-| Réseau dense | Agent de tarification dynamique de l'énergie | Dev C | `src/models/pricing_dense.py` |
+| Régression linéaire | Prévision de la consommation des foyers (London Smart Meters) | Serine | `src/models/linear_regression.py` |
+| LSTM | Prévision de la production solaire à partir de l'irradiance | Hadjer | `src/models/lstm_solar.py` |
+| Réseau dense | Agent de tarification dynamique de l'énergie | Asma | `src/models/pricing_dense.py` |
 
 Les prévisions des deux premiers modèles alimentent l'agent de tarification, évalué dans un environnement de simulation de micro-réseau (`src/simulation/`).
 
@@ -67,6 +67,23 @@ pytest
 
 ## Équipe
 
-- Dev A — régression linéaire (consommation)
-- Dev B — LSTM (solaire)
-- Dev C — agent de tarification (réseau dense)
+- Serine (Dev A) — régression linéaire (consommation)
+- Hadjer (Dev B) — LSTM (solaire)
+- Asma (Dev C) — agent de tarification (réseau dense)
+
+## Répartition du travail
+
+Chaque fichier à compléter commence par un bloc `PROMPT` qui décrit ce qu'il faut écrire, et contient des `# TODO (prénom)`. Pour retrouver ses tâches :
+
+```bash
+grep -rn "TODO (Serine)" src notebooks
+```
+
+| Qui | Fichiers | Test de validation |
+|---|---|---|
+| Serine | `src/models/linear_regression.py`, `_demand_response` dans `microgrid_env.py`, notebooks 01 et 03 | `pytest tests/test_models.py -k linear` |
+| Hadjer | `src/models/lstm_solar.py`, `_dispatch_battery` dans `microgrid_env.py`, notebooks 02 et 04 | `pytest tests/test_models.py -k lstm` |
+| Asma | `src/models/pricing_dense.py`, `_reward` dans `microgrid_env.py`, `src/pipeline.py`, notebook 05 | `pytest tests/test_models.py -k pricing` |
+| Équipe | `tests/test_simulation.py` (après les 3 méthodes de l'environnement), `app/demo.py`, rapport | `pytest` |
+
+Tant que les TODO ne sont pas écrits, les tests correspondants échouent avec `NotImplementedError` : c'est normal.

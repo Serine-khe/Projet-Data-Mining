@@ -1,4 +1,15 @@
-"""Construction des variables explicatives."""
+"""Construction des variables explicatives.
+
+==============================================================================
+PROMPT — code fonctionnel, à ENRICHIR si besoin
+==============================================================================
+Serine — ``add_time_features`` / ``add_lag_features`` : ajouter d'autres
+  variables si l'EDA le justifie (jours fériés britanniques, température...).
+Hadjer — ``make_sequences`` : fenêtres glissantes pour le LSTM ; à modifier si
+  tu veux prévoir plusieurs heures à l'avance.
+Toute modification doit garder les tests de tests/test_preprocess.py valides.
+==============================================================================
+"""
 import numpy as np
 import pandas as pd
 
