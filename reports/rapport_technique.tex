@@ -1,3 +1,14 @@
+% ============================================================================
+% PROMPT — rapport technique (livrable)
+% ============================================================================
+% Chaque section indique qui la rédige. Mettre les figures dans reports/figures/
+% (src/evaluation/plots.py les y enregistre avec name="...").
+%   Introduction, Conclusion, Discussion : toute l'équipe
+%   Données / London Smart Meters, Régression linéaire : Serine
+%   Données / Irradiance solaire, LSTM                 : Hadjer
+%   Agent de tarification, Environnement de simulation : Asma
+%   Résultats : chacune remplit sa ligne du tableau et ajoute ses figures
+% ============================================================================
 \documentclass[11pt,a4paper]{article}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
@@ -11,7 +22,7 @@
 \graphicspath{{figures/}}
 
 \title{Micro-réseau intelligent : prévision de la consommation et de la production solaire, tarification dynamique}
-\author{Dev A \and Dev B \and Dev C}
+\author{Serine \and Hadjer \and Asma}
 \date{\today}
 
 \begin{document}
@@ -28,19 +39,19 @@
 
 \section{Données}
 \subsection{London Smart Meters}
-% Description, période, nombre de foyers, nettoyage.
+% (Serine) Description, période, nombre de foyers, nettoyage.
 \subsection{Irradiance solaire}
-% Source, variables, conversion en production PV.
+% (Hadjer) Source, variables, conversion en production PV.
 
 \section{Méthodologie}
-\subsection{Prévision de consommation : régression linéaire (Dev A)}
+\subsection{Prévision de consommation : régression linéaire (Serine)}
 % Variables calendaires, retards, régularisation.
-\subsection{Prévision solaire : LSTM (Dev B)}
+\subsection{Prévision solaire : LSTM (Hadjer)}
 % Architecture, fenêtre temporelle, entraînement.
-\subsection{Agent de tarification : réseau dense (Dev C)}
+\subsection{Agent de tarification : réseau dense (Asma)}
 % État, sortie, fonction cible, entraînement.
 \subsection{Environnement de simulation}
-% Bilan énergétique, batterie, élasticité prix.
+% (Asma, avec Serine et Hadjer) Bilan énergétique, batterie, élasticité prix.
 
 \section{Résultats}
 \begin{table}[h]
