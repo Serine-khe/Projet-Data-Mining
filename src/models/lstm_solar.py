@@ -126,7 +126,7 @@ class SolarLSTM:
         return make_windows(X, y, self.window, self.horizon)
 
     # -- entraînement ------------------------------------------------------
-    def fit(self, train_df, val_df, epochs=50, batch_size=64, patience=8, verbose=1):
+    def fit(self, train_df, val_df, epochs=50, batch_size=64, patience=8, verbose=1, shuffle=False):
         """Entraîne le modèle (les scalers sont ajustés sur train uniquement)."""
         from tensorflow import keras
 
@@ -141,7 +141,7 @@ class SolarLSTM:
         ]
         self.history = self.model.fit(X_tr, y_tr, validation_data=(X_va, y_va),
                                       epochs=epochs, batch_size=batch_size,
-                                      callbacks=callbacks, shuffle=False, verbose=verbose)
+                                      callbacks=callbacks, shuffle=shuffle, verbose=verbose)
         return self.history
 
     train = fit  # alias pour l'interface commune
@@ -199,3 +199,16 @@ class SolarLSTM:
         obj.target_scaler = scalers["target_scaler"]
         obj.model = keras.models.load_model(os.path.join(directory, f"{name}.keras"))
         return obj
+
+# --------------------------------------------------------------------------
+# Conversion irradiance -> production photovoltaïque (ESTIMÉE)
+# --------------------------------------------------------------------------
+def estimate_pv_power(radiation_wm2, peak_kw=150.0, performance_ratio=0.80):
+    """Production PV estimée (kW, donc kWh sur une heure) à partir de l'irradiance.
+
+    Le jeu de données ne contient pas de production mesurée, on utilise la formule simple :
+        P = P_crête * (G / 1000) * PR
+    G : irradiance (W/m²), 1000 W/m² = conditions standard de test des panneaux,
+    PR : ratio de performance (pertes onduleur, câbles, température).
+    """
+    return peak_kw * np.clip(np.asarray(radiation_wm2, dtype=float), 0, None) / 1000 * performance_ratio

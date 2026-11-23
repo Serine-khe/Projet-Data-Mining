@@ -1,4 +1,4 @@
-"""Chemins du projet et hyperparamètres des modèles."""
+"""Chemins du projet et paramètres communs (micro-réseau, tarification)."""
 from pathlib import Path
 
 # --- Chemins ---------------------------------------------------------------
@@ -12,51 +12,38 @@ SIMULATED_DIR = DATA_DIR / "simulated"
 MODELS_DIR = ROOT_DIR / "models_saved"
 FIGURES_DIR = ROOT_DIR / "reports" / "figures"
 
-# --- Général ---------------------------------------------------------------
 RANDOM_SEED = 42
-FREQ = "h"            # pas de temps après rééchantillonnage
-TEST_SIZE = 0.2       # proportion test (découpage chronologique)
 
-# --- Dev A (Serine) : régression linéaire (consommation) ----------------------------
-LINEAR_REGRESSION = {
-    "lags": [1, 2, 3, 24, 168],   # heures
-    "rolling_windows": [24],
-    "alpha": 1.0,                  # régularisation Ridge (0 = OLS)
-}
+# --- Découpage temporel (identique dans les notebooks 03 et 04) ------------
+TRAIN_SIZE = 0.70
+VAL_SIZE = 0.15          # le reste (15 %) sert de test
 
-# --- Dev B (Hadjer) : LSTM (solaire) ------------------------------------------------
-LSTM_SOLAR = {
-    "seq_len": 24,
-    "hidden_size": 64,
-    "num_layers": 2,
-    "dropout": 0.2,
-    "lr": 1e-3,
-    "epochs": 20,
-    "batch_size": 64,
-    "features": ["ghi", "temperature", "hour_sin", "hour_cos", "doy_sin", "doy_cos"],
-    "target": "pv_power",
-}
+# --- Alignement des deux jeux de données -----------------------------------
+# Irradiance : Hawaï 2016. Consommation : Londres 2011-2014.
+# On décale l'irradiance de 3 ans (2016 -> 2013) en gardant mois, jour et heure.
+SOLAR_YEAR_SHIFT = 3
 
-# --- Dev C (Asma) : agent de tarification (réseau dense) --------------------------
-PRICING_DENSE = {
-    "hidden_sizes": [64, 32],
-    "lr": 1e-3,
-    "epochs": 50,
-    "batch_size": 64,
-    "price_min": 0.05,   # €/kWh
-    "price_max": 0.40,   # €/kWh
-}
-
-# --- Simulation du micro-réseau --------------------------------------------
+# --- Micro-réseau simulé ---------------------------------------------------
 MICROGRID = {
-    "n_households": 50,
-    "pv_capacity_kw": 100.0,
+    "n_households": 100,          # foyers du micro-réseau (conso moyenne par foyer x 100)
+    "pv_peak_kw": 150.0,          # puissance crête des panneaux (kWc)
+    "performance_ratio": 0.80,    # pertes onduleur, câbles, température...
     "battery_capacity_kwh": 200.0,
     "battery_power_kw": 50.0,
     "battery_efficiency": 0.95,
     "initial_soc": 0.5,
-    "grid_import_price": 0.25,   # €/kWh
-    "grid_export_price": 0.08,   # €/kWh
-    "demand_elasticity": -0.3,   # élasticité prix de la demande
-    "reference_price": 0.20,     # €/kWh
+    "demand_elasticity": -0.2,    # hypothèse : +10 % de prix -> environ -2 % de demande
+    "reference_price": 0.20,      # €/kWh, tarif fixe de référence
+}
+
+# --- Agent de tarification (réseau dense) ----------------------------------
+PRICING = {
+    "tariffs": [0.10, 0.15, 0.20, 0.25, 0.30],   # niveaux de tarif possibles (€/kWh)
+    "hidden_units": [32, 16],
+    "epochs": 60,
+    "batch_size": 32,
+    "learning_rate": 1e-3,
+    # Stratégie à règles (heures pleines / creuses) : prix moyen sur 24 h = 0,20 €/kWh
+    "peak_hours": [17, 18, 19, 20, 21],     # tarif haut (pointe du soir)
+    "solar_hours": [11, 12, 13, 14, 15],    # tarif bas (milieu de journée, soleil)
 }

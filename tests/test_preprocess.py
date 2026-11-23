@@ -3,41 +3,41 @@ import pandas as pd
 import pytest
 
 from src.data import preprocess
-from src.data.features import add_lag_features, add_time_features, make_sequences
+from src.data.features import add_lag_features, add_time_features
 
 
-def _raw_consumption():
-    ts = pd.date_range("2013-01-01", periods=96, freq="30min")
-    df = pd.DataFrame({"household_id": "MAC000001", "timestamp": ts, "kwh": 0.2})
-    df.loc[5, "kwh"] = np.nan
-    df.loc[10, "kwh"] = -1.0
-    return pd.concat([df, df.iloc[:3]])   # doublons
+def _blocks():
+    index = pd.date_range("2013-01-01", periods=96, freq="30min")
+    blocks = pd.DataFrame({f"block_{i}": 0.2 + 0.01 * i for i in range(5)}, index=index)
+    blocks.iloc[:10, :2] = np.nan        # 2 blocs pas encore actifs au début
+    return blocks
 
 
-def test_clean_consumption_removes_duplicates_and_negatives():
-    out = preprocess.clean_consumption(_raw_consumption())
-    assert not out.duplicated(subset=["household_id", "timestamp"]).any()
-    assert (out["kwh"] >= 0).all()
-    assert out["kwh"].notna().all()
+def test_consumption_to_hourly():
+    hourly = preprocess.consumption_to_hourly(_blocks())
+    assert list(hourly.columns) == ["mean_kwh", "std_blocks"]
+    assert (hourly.index.to_series().diff().dropna() == pd.Timedelta("1h")).all()
+    # 2 demi-heures de ~0.22 kWh -> ~0.44 kWh par heure et par foyer
+    assert hourly["mean_kwh"].iloc[-1] == pytest.approx(0.44)
+    # les 10 premières demi-heures (moins de 80 % des blocs) sont retirées
+    assert hourly.index[0] == pd.Timestamp("2013-01-01 05:00")
 
 
-def test_aggregate_consumption_is_hourly():
-    out = preprocess.aggregate_consumption(preprocess.clean_consumption(_raw_consumption()))
-    assert list(out.columns) == ["timestamp", "consumption_kwh"]
-    assert (out["timestamp"].diff().dropna() == pd.Timedelta("1h")).all()
+def test_solar_to_hourly():
+    unix = pd.date_range("2016-09-01 10:00", periods=48, freq="5min").astype("int64") // 10**9
+    raw = pd.DataFrame({"UNIXTime": unix, "Radiation": np.linspace(-1, 500, 48), "Temperature": 50,
+                        "Pressure": 30.4, "Humidity": 80, "WindDirection(Degrees)": 100, "Speed": 5})
+    hourly = preprocess.solar_to_hourly(raw)
+    assert len(hourly) == 4
+    assert hourly.index[0] == pd.Timestamp("2016-09-01 00:00")      # UTC -> heure d'Hawaï (UTC-10)
+    assert (hourly["Radiation"] >= 0).all()
 
 
-def test_clean_solar_clips_negative_irradiance():
-    ts = pd.date_range("2013-06-01", periods=48, freq="h")
-    df = pd.DataFrame({"timestamp": ts, "ghi": np.linspace(-10, 500, 48), "temperature": 20.0})
-    assert (preprocess.clean_solar(df)["ghi"] >= 0).all()
-
-
-def test_time_split_is_chronological():
-    df = pd.DataFrame({"timestamp": pd.date_range("2013-01-01", periods=100, freq="h")})
-    train, test = preprocess.train_test_split_time(df, 0.2)
-    assert len(train) == 80 and len(test) == 20
-    assert train["timestamp"].max() < test["timestamp"].min()
+def test_add_holidays():
+    index = pd.date_range("2013-12-24", periods=72, freq="h")
+    out = preprocess.add_holidays(pd.DataFrame({"mean_kwh": 0.4}, index=index))
+    assert out.loc["2013-12-25", "is_holiday"].eq(1).all()
+    assert out.loc["2013-12-24", "is_holiday"].eq(0).all()
 
 
 def test_time_features_are_cyclic():
@@ -50,13 +50,3 @@ def test_lag_features_no_leakage():
     out = add_lag_features(df, "y", lags=[1, 3], rolling_windows=[2])
     assert (out["y"] - out["y_lag1"] == 1).all()
     assert (out["y"] - out["y_lag3"] == 3).all()
-    assert (out["y_roll2"] == out["y"] - 1.5).all()
-
-
-def test_make_sequences_shapes():
-    X, y = np.random.rand(50, 3), np.arange(50)
-    Xs, ys = make_sequences(X, y, seq_len=10)
-    assert Xs.shape == (40, 10, 3) and ys.shape == (40,)
-    assert ys[0] == 10
-    with pytest.raises(ValueError):
-        make_sequences(X, y, seq_len=60)

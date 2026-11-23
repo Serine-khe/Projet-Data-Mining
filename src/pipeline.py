@@ -1,17 +1,10 @@
-"""Enchaînement des 3 modèles : consommation (A) + solaire (B) -> tarification (C) -> simulation.
+"""Enchaînement des 3 modèles :
+régression linéaire (consommation) + LSTM (solaire) -> réseau dense (tarif) -> simulation.
 
-==============================================================================
-PROMPT — fichier d'intégration, responsable : Asma (avec relecture de l'équipe)
-==============================================================================
-Ce fichier est déjà écrit : il appelle les interfaces des trois modèles. Il
-fonctionnera dès que linear_regression.py, lstm_solar.py, pricing_dense.py et
-microgrid_env.py seront implémentés. À faire :
-  - Lancer ``python -m src.pipeline`` puis ``python -m src.pipeline --real-data``.
-  - Si une interface change, mettre ce fichier à jour (en accord avec Serine et Hadjer).
-  - Les états d'entraînement de l'agent utilisent un SoC tiré au hasard :
-    Asma peut le remplacer par les SoC obtenus en simulation.
-  - Reporter les métriques affichées dans le rapport.
-==============================================================================
+Prérequis : data/processed/consumption_hourly.csv et solar_hourly.csv (notebooks 01 et 02).
+
+    python -m src.pipeline              # utilise les modèles sauvegardés par les notebooks 03 et 04
+    python -m src.pipeline --retrain    # ré-entraîne la régression et le LSTM
 """
 import argparse
 
@@ -19,95 +12,104 @@ import numpy as np
 import pandas as pd
 
 from src import config
-from src.data import load_data, preprocess
-from src.evaluation.metrics import regression_report
-from src.models.linear_regression import ConsumptionForecaster
-from src.models.lstm_solar import SolarForecaster
-from src.models.pricing_dense import PricingAgent
-from src.simulation.microgrid_env import fixed_price_policy
-from src.simulation.run_simulation import generate_synthetic_data, simulate, summarize
+from src.data.load_data import load_processed
+from src.models import linear_regression as lr
+from src.models import lstm_solar
+from src.models.pricing_dense import PricingAgent, best_tariff_index, make_features
+from src.simulation.microgrid_env import fixed_price_policy, rule_based_policy
+from src.simulation.run_simulation import compare_policies
+
+MG = config.MICROGRID
 
 
-def load_inputs(use_real_data: bool) -> tuple[pd.DataFrame, pd.DataFrame]:
-    if use_real_data:
-        consumption = preprocess.aggregate_consumption(
-            preprocess.clean_consumption(load_data.load_london_smart_meters()))
-        solar = preprocess.clean_solar(load_data.load_solar_irradiance())
-        merged = consumption.merge(solar, on="timestamp")
-        return merged[["timestamp", "consumption_kwh"]], merged.drop(columns="consumption_kwh")
-    return generate_synthetic_data()
+def consumption_forecasts(model, consumption):
+    """Prévisions de la régression sur toute la période, converties pour le micro-réseau (kWh/h).
+    Retourne aussi la date de début du test (après train + validation)."""
+    X, y = lr.build_features(consumption)
+    _, _, (X_test, _) = lr.split_chronological(X, y, config.TRAIN_SIZE, config.VAL_SIZE)
+    n = MG["n_households"]
+    forecasts = pd.DataFrame({"demand_true": y.values * n, "demand_pred": model.predict(X) * n}, index=X.index)
+    return forecasts, X_test.index[0]
 
 
-def align_forecasts(test_index: pd.Series, *series: tuple[pd.Series, np.ndarray]) -> pd.DataFrame:
-    """Aligne les prévisions des deux modèles (fenêtres de retards différentes) sur le temps."""
-    out = pd.DataFrame({"timestamp": test_index})
-    for name, (ts, values) in series:
-        out = out.merge(pd.DataFrame({"timestamp": ts.to_numpy(), name: values}), on="timestamp")
-    return out
+def solar_forecasts(model, solar):
+    """Prévisions LSTM de l'irradiance, puis production PV ESTIMÉE (formule de lstm_solar).
+    Les dates sont décalées de 2016 vers 2013 pour s'aligner sur la consommation."""
+    df = lstm_solar.add_time_features(solar)
+    _, _, test = lstm_solar.split_chronological(df, config.TRAIN_SIZE, config.VAL_SIZE)
+    index = model.target_index(df) - pd.DateOffset(years=config.SOLAR_YEAR_SHIFT)
+    radiation_true = model.true_values(df)[:, 0]
+    radiation_pred = model.predict(df)[:, 0]
+
+    def to_pv(g):
+        return lstm_solar.estimate_pv_power(g, MG["pv_peak_kw"], MG["performance_ratio"])
+
+    forecasts = pd.DataFrame({"radiation_true": radiation_true, "radiation_pred": radiation_pred,
+                              "pv_true": to_pv(radiation_true), "pv_pred": to_pv(radiation_pred)}, index=index)
+    test_start = model.target_index(test)[0] - pd.DateOffset(years=config.SOLAR_YEAR_SHIFT)
+    return forecasts, test_start
 
 
-def run(use_real_data: bool = False, verbose: bool = True) -> dict:
-    consumption, solar = load_inputs(use_real_data)
-    c_train, c_test = preprocess.train_test_split_time(consumption)
-    s_train, s_test = preprocess.train_test_split_time(solar)
+def build_grid(demand_fc, demand_test_start, pv_fc, pv_test_start):
+    """Joint les deux prévisions sur les heures communes.
+    'test' = heures où les DEUX modèles n'ont jamais vu les données."""
+    grid = demand_fc.join(pv_fc, how="inner")
+    grid["period"] = np.where(grid.index >= max(demand_test_start, pv_test_start), "test", "train")
+    return grid
 
-    # --- A : consommation
-    lr = ConsumptionForecaster().fit(c_train)
-    c_true, c_pred = lr.predict_with_target(c_test)
-    lr.save()
-    n_dropped = len(c_test) - len(c_pred)
-    c_ts = c_test["timestamp"].iloc[n_dropped:]
 
-    # --- B : solaire
-    lstm = SolarForecaster()
-    lstm.fit(s_train, verbose=verbose)
-    s_true, s_pred = lstm.predict_with_target(s_test)
-    lstm.save()
-    s_ts = s_test["timestamp"].iloc[config.LSTM_SOLAR["seq_len"]:]
-
-    reports = {"consommation": regression_report(c_true, c_pred),
-               "solaire": regression_report(s_true, s_pred)}
-
-    # --- C : tarification sur les prévisions alignées
-    f = align_forecasts(c_test["timestamp"], ("demand_kwh", (c_ts, c_pred)), ("solar_kwh", (s_ts, s_pred)))
-    hours = f["timestamp"].dt.hour.to_numpy()
-    rng = np.random.default_rng(config.RANDOM_SEED)
-    states = np.column_stack([f["demand_kwh"], f["solar_kwh"], rng.uniform(0, 1, len(f)),
-                              np.sin(2 * np.pi * hours / 24), np.cos(2 * np.pi * hours / 24)])
+def train_pricing_agent(grid_train, verbose=0):
+    X = make_features(grid_train["demand_pred"], grid_train["pv_pred"], grid_train.index.hour)
+    y = best_tariff_index(grid_train["demand_pred"], grid_train["pv_pred"], grid_train.index.date)
     agent = PricingAgent()
-    agent.fit(states, verbose=verbose)
+    agent.fit(X, y, verbose=verbose)
+    return agent
+
+
+def get_forecasting_models(consumption, solar, retrain=False):
+    if not retrain:
+        return (lr.ConsumptionModel.load(config.MODELS_DIR, "linear_regression"),
+                lstm_solar.SolarLSTM.load(config.MODELS_DIR, "lstm_solar"))
+
+    # Mêmes réglages que les modèles retenus dans les notebooks 03 et 04
+    X, y = lr.build_features(consumption)
+    (X_tr, y_tr), (X_va, y_va), _ = lr.split_chronological(X, y, config.TRAIN_SIZE, config.VAL_SIZE)
+    lr_model = lr.ConsumptionModel("lasso", 1e-4).fit(pd.concat([X_tr, X_va]), pd.concat([y_tr, y_va]))
+
+    df = lstm_solar.add_time_features(solar)
+    train, val, _ = lstm_solar.split_chronological(df, config.TRAIN_SIZE, config.VAL_SIZE)
+    lstm_model = lstm_solar.SolarLSTM(window=6, horizon=1, units=(32,), dropout=0.1)
+    lstm_model.fit(train, val, epochs=40, verbose=0, shuffle=True)
+    return lr_model, lstm_model
+
+
+def run(retrain=False):
+    consumption, solar = load_processed()
+    lr_model, lstm_model = get_forecasting_models(consumption, solar, retrain)
+
+    demand_fc, demand_test_start = consumption_forecasts(lr_model, consumption)
+    pv_fc, pv_test_start = solar_forecasts(lstm_model, solar)
+    grid = build_grid(demand_fc, demand_test_start, pv_fc, pv_test_start)
+    grid_train, grid_test = grid[grid["period"] == "train"], grid[grid["period"] == "test"]
+    print(f"Heures communes : {len(grid)} (entraînement agent : {len(grid_train)}, test : {len(grid_test)})")
+
+    agent = train_pricing_agent(grid_train)
     agent.save()
+    config.PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    grid.to_csv(config.PROCESSED_DIR / "grid_all.csv")
+    grid_test.to_csv(config.PROCESSED_DIR / "grid_test.csv")
 
-    # --- Simulation : réel observé, décisions prises sur les prévisions
-    real = c_test.set_index("timestamp")["consumption_kwh"].reindex(f["timestamp"]).to_numpy()
-    real_solar = s_test.set_index("timestamp")["pv_power"].reindex(f["timestamp"]).to_numpy()
-    forecast_states = f[["demand_kwh", "solar_kwh"]].to_numpy()
-
-    def agent_policy(state):
-        t = min(int(agent_policy.t), len(forecast_states) - 1)
-        agent_policy.t += 1
-        s = state.copy()
-        s[:2] = forecast_states[t]
-        return agent.act(s)
-    agent_policy.t = 0
-
-    sims = {"prix_fixe": summarize(simulate(real, real_solar, fixed_price_policy(), hours)),
-            "agent_dense": summarize(simulate(real, real_solar, agent_policy, hours))}
-    reports["simulation"] = sims
-
-    if verbose:
-        for k, v in reports.items():
-            print(f"\n== {k} ==")
-            for kk, vv in v.items():
-                print(f"  {kk}: {vv}")
-    return reports
+    policies = {"Tarif fixe": fixed_price_policy(), "Heures pleines / creuses": rule_based_policy(),
+                "Réseau dense": agent.make_policy()}
+    table, _ = compare_policies(grid_test, policies)
+    print(table.round(2).to_string())
+    return table
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--real-data", action="store_true", help="utilise data/raw au lieu des données synthétiques")
-    args = parser.parse_args()
-    run(use_real_data=args.real_data)
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--retrain", action="store_true", help="ré-entraîne la régression et le LSTM")
+    run(parser.parse_args().retrain)
 
 
 if __name__ == "__main__":

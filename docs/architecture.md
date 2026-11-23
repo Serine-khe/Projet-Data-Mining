@@ -1,64 +1,63 @@
 # Architecture
 
-## Vue d'ensemble
+## Flux de données
 
 ```
- data/raw ──► load_data ──► preprocess ──► features
-                                              │
-              ┌───────────────────────────────┴───────────────────────┐
-              ▼                                                       ▼
-   Dev A : ConsumptionForecaster                         Dev B : SolarForecaster
-   (régression linéaire, lags + calendrier)              (LSTM, irradiance + météo)
-              │  demande prévue                                       │  production prévue
-              └──────────────────────┬────────────────────────────────┘
-                                     ▼
-                        Dev C : PricingAgent (réseau dense)
-                        état = [demande, solaire, SoC, heure]
-                                     │  prix €/kWh
-                                     ▼
-                        MicrogridEnv (simulation)
-                        foyers + PV + batterie + réseau principal
-                                     │
-                                     ▼
-                        evaluation (metrics, plots) ──► reports/figures
+data/raw/london_smart_meters/elec_block.csv ─┐
+data/raw/london_smart_meters/weather_*.csv  ─┼─► notebook 01 / preprocess.py ─► consumption_hourly.csv
+                                             │
+data/raw/solar_irradiance/SolarPrediction.csv ─► notebook 02 / preprocess.py ─► solar_hourly.csv
+
+consumption_hourly.csv ─► Régression Lasso (notebook 03) ─► demande prévue par foyer × 100 foyers
+solar_hourly.csv       ─► LSTM (notebook 04) ─► irradiance prévue ─► production PV ESTIMÉE
+                                                       (dates décalées 2016 -> 2013)
+                                    │
+                                    ▼  jointure sur les heures communes (sept.-déc. 2013)
+                    Réseau dense (notebook 05) : tarif parmi {0,10 ... 0,30} €/kWh
+                                    │
+                                    ▼
+                    MicrogridEnv : demande RÉELLE × réaction au prix, PV réelle,
+                    batterie, import / export ─► indicateurs (run_simulation.summarize)
 ```
 
 ## Modules
 
 | Module | Responsabilité |
 |---|---|
-| `src/config.py` | Chemins et hyperparamètres centralisés |
-| `src/data/load_data.py` | Lecture des CSV bruts, renommage des colonnes |
-| `src/data/preprocess.py` | Nettoyage, agrégation horaire, découpage chronologique |
-| `src/data/features.py` | Variables calendaires cycliques, retards, fenêtres LSTM |
-| `src/models/linear_regression.py` | Prévision de consommation (scikit-learn, `.pkl`) |
-| `src/models/lstm_solar.py` | Prévision solaire (PyTorch, `.pt`) |
-| `src/models/pricing_dense.py` | Agent de prix (PyTorch, `.pt`) |
-| `src/simulation/microgrid_env.py` | Environnement pas-à-pas (bilan énergétique, batterie, élasticité) |
-| `src/simulation/run_simulation.py` | Données synthétiques, comparaison de politiques |
-| `src/evaluation/` | MAE, RMSE, MAPE, R², graphiques |
-| `src/pipeline.py` | Orchestration bout en bout |
-| `app/demo.py` | Interface Streamlit |
+| `src/config.py` | Chemins, découpage temporel, paramètres du micro-réseau et de l'agent |
+| `src/data/load_data.py` | Lecture des fichiers bruts et traités |
+| `src/data/preprocess.py` | Mêmes étapes que les notebooks 01 et 02 (blocs -> horaire, UTC -> heure d'Hawaï) |
+| `src/models/linear_regression.py` | Variables, découpage, régression linéaire / Ridge / Lasso, baselines |
+| `src/models/lstm_solar.py` | Fenêtres glissantes, LSTM Keras, persistance, formule PV estimée |
+| `src/models/pricing_dense.py` | Tarifs idéaux (étiquettes), variables de l'agent, réseau dense Keras |
+| `src/simulation/microgrid_env.py` | Simulation heure par heure, tarif fixe, règle heures pleines / creuses |
+| `src/simulation/run_simulation.py` | Simulation d'une stratégie, indicateurs, comparaison |
+| `src/pipeline.py` | Enchaînement complet (utilisé aussi par le notebook 05) |
+| `app/demo.py` | Démonstration Streamlit |
 
-## Interfaces entre modèles
+## Interfaces
 
-- `ConsumptionForecaster.predict(df)` → `np.ndarray` (kWh/h), `df` contient `timestamp`, `consumption_kwh`.
-- `SolarForecaster.predict(df)` → `np.ndarray` (kWh/h), `df` contient `timestamp`, `ghi`, `temperature`, `pv_power`.
-- `PricingAgent.act(state)` → `float` (€/kWh), `state = [demand_kwh, solar_kwh, soc, hour_sin, hour_cos]`.
-- `MicrogridEnv.step(price)` → `StepResult(state, reward, done, info)`.
+- `ConsumptionModel.predict(X)` -> kWh par foyer, avec `X, y = build_features(df)`.
+- `SolarLSTM.predict(df)` -> irradiance (W/m²), forme `(n, 1)`, alignée sur `target_index(df)`.
+- `estimate_pv_power(G)` -> production PV estimée (kW).
+- `best_tariff_index(demand, pv, days)` -> indice du tarif idéal pour chaque heure.
+- `PricingAgent.make_policy()` -> fonction `state -> prix`, utilisée par `MicrogridEnv.run`.
+- `state = {"demand_forecast", "pv_forecast", "soc", "hour"}` : la politique ne voit que des prévisions.
 
-## Modèle du micro-réseau
+## Modèle du micro-réseau (une heure)
 
-À chaque heure *t* :
+1. Prix choisi par la politique à partir des prévisions.
+2. Demande : `D = D_réelle × (prix / 0,20) ** (-0,2)`.
+3. Le solaire couvre la demande ; écart `D - PV`.
+4. Batterie : décharge si déficit, charge si surplus (50 kW max, 200 kWh, rendement 95 %).
+5. Le reste est importé du réseau principal ou exporté.
 
-1. La demande réagit au prix : `D = D_base · (prix / prix_ref) ^ élasticité`.
-2. Le solaire couvre la demande ; le déficit ou surplus net est `D − PV`.
-3. La batterie se décharge (déficit) ou se charge (surplus), limitée par sa puissance, sa capacité et son rendement.
-4. Le reste est importé ou exporté sur le réseau principal.
-5. Récompense = `D · prix + export · prix_export − import · prix_import`.
+## Étiquettes de l'agent
+
+Pour chaque journée : tarifs qui minimisent `somme |D_h(p_h) - PV_h|` avec un prix moyen de 0,20 €/kWh (multiplicateur `mu` cherché sur une grille). Le réseau dense apprend ensuite à les reproduire à partir de l'heure courante et des 24 heures passées (apprentissage supervisé).
 
 ## Conventions
 
-- Découpage train/test chronologique, jamais aléatoire.
-- Les modèles sauvegardés vont dans `models_saved/` (non versionné).
-- Les données brutes restent hors du dépôt ; `data/simulated/` permet de tout exécuter sans elles.
+- Découpage chronologique 70 / 15 / 15, réglages choisis sur la validation.
+- Normalisations ajustées sur l'entraînement uniquement ; graines fixées (résultats reproductibles).
+- Données brutes et modèles sauvegardés hors du dépôt.

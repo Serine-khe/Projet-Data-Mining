@@ -1,66 +1,31 @@
-"""Chargement des données brutes (London Smart Meters, irradiance solaire).
+"""Chargement des fichiers bruts et des fichiers traités.
 
-==============================================================================
-PROMPT — code fonctionnel, à ADAPTER aux vrais fichiers téléchargés
-==============================================================================
-Serine — ``load_london_smart_meters`` : télécharger le jeu « Smart Meter Energy
-  Consumption Data in London Households », le placer dans
-  data/raw/london_smart_meters/, vérifier les noms de colonnes et le format des
-  dates. Le jeu complet est très gros : prévoir un sous-ensemble de foyers
-  (paramètre nrows ou filtre sur LCLid).
-Hadjer — ``load_solar_irradiance`` : choisir le jeu d'irradiance (idéalement
-  Londres, même période que la consommation), le placer dans
-  data/raw/solar_irradiance/ et renommer ses colonnes en ``timestamp``, ``ghi``,
-  ``temperature``. S'il n'y a pas de colonne ``pv_power``, la calculer à partir
-  de l'irradiance (puissance installée config.MICROGRID["pv_capacity_kw"]).
-Ne jamais modifier les fichiers de data/raw : écrire les versions nettoyées
-dans data/processed/.
-==============================================================================
+Fichiers bruts attendus (non versionnés, voir README) :
+  data/raw/london_smart_meters/elec_block.csv             consommation demi-horaire par bloc de foyers
+  data/raw/london_smart_meters/weather_hourly_darksky.csv météo horaire de Londres
+  data/raw/solar_irradiance/SolarPrediction.csv           irradiance HI-SEAS (Hawaï), mesures toutes les 5 min
 """
-from pathlib import Path
-
 import pandas as pd
 
 from src import config
 
 
-def load_london_smart_meters(path: Path = config.LONDON_DIR, nrows: int | None = None) -> pd.DataFrame:
-    """Charge les CSV London Smart Meters (relevés demi-horaires).
-
-    Retourne un DataFrame avec les colonnes ``household_id``, ``timestamp``, ``kwh``.
-    """
-    files = sorted(Path(path).glob("*.csv"))
-    if not files:
-        raise FileNotFoundError(f"Aucun fichier CSV trouvé dans {path}")
-
-    frames = [pd.read_csv(f, nrows=nrows) for f in files]
-    df = pd.concat(frames, ignore_index=True)
-    df = df.rename(columns={
-        "LCLid": "household_id",
-        "DateTime": "timestamp",
-        "KWH/hh (per half hour) ": "kwh",
-        "KWH/hh (per half hour)": "kwh",
-    })
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
-    df["kwh"] = pd.to_numeric(df["kwh"], errors="coerce")
-    return df[["household_id", "timestamp", "kwh"]]
+def load_elec_blocks(path=config.LONDON_DIR / "elec_block.csv") -> pd.DataFrame:
+    """Format large : index tstp (30 min), une colonne par bloc (kWh moyen par foyer)."""
+    return pd.read_csv(path, parse_dates=["tstp"], index_col="tstp").sort_index().astype("float32")
 
 
-def load_solar_irradiance(path: Path = config.SOLAR_DIR) -> pd.DataFrame:
-    """Charge les CSV d'irradiance solaire.
-
-    Colonnes attendues : ``timestamp``, ``ghi`` (W/m²), ``temperature`` (°C),
-    et optionnellement ``pv_power`` (kW).
-    """
-    files = sorted(Path(path).glob("*.csv"))
-    if not files:
-        raise FileNotFoundError(f"Aucun fichier CSV trouvé dans {path}")
-
-    df = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
-    return df.sort_values("timestamp").reset_index(drop=True)
+def load_weather(path=config.LONDON_DIR / "weather_hourly_darksky.csv") -> pd.DataFrame:
+    weather = pd.read_csv(path, parse_dates=["time"]).set_index("time").sort_index()
+    return weather[~weather.index.duplicated()]
 
 
-def load_processed(name: str) -> pd.DataFrame:
-    """Charge un fichier nettoyé depuis ``data/processed``."""
-    return pd.read_csv(config.PROCESSED_DIR / f"{name}.csv", parse_dates=["timestamp"])
+def load_solar_raw(path=config.SOLAR_DIR / "SolarPrediction.csv") -> pd.DataFrame:
+    return pd.read_csv(path)
+
+
+def load_processed():
+    """Fichiers horaires produits par les notebooks 01 et 02 (ou preprocess.py)."""
+    consumption = pd.read_csv(config.PROCESSED_DIR / "consumption_hourly.csv", index_col=0, parse_dates=True)
+    solar = pd.read_csv(config.PROCESSED_DIR / "solar_hourly.csv", index_col=0, parse_dates=True)
+    return consumption, solar
