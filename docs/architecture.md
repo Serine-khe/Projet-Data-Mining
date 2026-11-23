@@ -58,6 +58,6 @@ Pour chaque journée : tarifs qui minimisent `somme |D_h(p_h) - PV_h|` avec un p
 
 ## Conventions
 
-- Découpage chronologique 70 / 15 / 15, réglages choisis sur la validation.
+- Découpage chronologique 70 / 15 / 15, configurations départagées sur la validation (des scores de test ont toutefois été consultés pendant le développement, voir le rapport, section 11).
 - Normalisations ajustées sur l'entraînement uniquement ; graines fixées (résultats reproductibles).
 - Données brutes et modèles sauvegardés hors du dépôt.

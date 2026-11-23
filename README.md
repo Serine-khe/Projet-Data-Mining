@@ -57,7 +57,7 @@ data/raw/london_smart_meters/weather_hourly_darksky.csv  # météo horaire de Lo
 data/raw/solar_irradiance/SolarPrediction.csv            # irradiance HI-SEAS (Hawaï), sept.-déc. 2016
 ```
 
-- Consommation et météo : jeu Kaggle *Smart meters in London* (https://www.kaggle.com/datasets/jeanmidev/smart-meters-in-london), issu du projet Low Carbon London (https://data.london.gov.uk/dataset/smartmeter-energy-use-data-in-london-households). `elec_block.csv` est une version agrégée par blocs de ces données.
+- Consommation et météo : jeu Kaggle *Processed dataset of smart meters in London* (https://www.kaggle.com/datasets/patrick0302/10qs-load-forecasting-london-dataset), qui contient les deux fichiers. Il est construit à partir de *Smart meters in London* (https://www.kaggle.com/datasets/jeanmidev/smart-meters-in-london), issu du projet Low Carbon London (https://data.london.gov.uk/dataset/smartmeter-energy-use-data-in-london-households). `elec_block.csv` est une version agrégée par blocs de ces données.
 - Irradiance : jeu Kaggle *Solar Radiation Prediction* (https://www.kaggle.com/datasets/dronio/SolarEnergy).
 
 Les deux jeux n'ont pas de période commune : l'irradiance de 2016 est décalée en 2013 (même mois, jour et heure). La production photovoltaïque n'est pas mesurée : elle est estimée par `P = 150 kWc × G / 1000 × 0,8`.
@@ -91,7 +91,7 @@ pytest                                 # tests unitaires
 | Irradiance (LSTM, 1 h à l'avance) | RMSE 113 W/m², **R² 0,820** (persistance : R² 0,807) |
 | Tarification (réseau dense, 14-31 déc., simulé) | déséquilibre −5,2 %, import −3,7 %, pic d'import −7,8 %, mais prix moyen +8,7 % |
 
-Détails, limites et discussion dans le rapport.
+Des scores de test ont été consultés pendant la mise au point du LSTM et de l'agent : ces deux résultats sont probablement un peu optimistes. Détails, limites et discussion dans le rapport.
 
 ## Équipe
 
