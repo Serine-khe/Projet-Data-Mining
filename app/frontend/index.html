@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Micro-réseau — prévision et tarification</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="title">
+      <h1>Micro-réseau · prévision et tarification</h1>
+      <span class="subtitle">Projet de Data Mining — 100 foyers, 150 kWc, batterie 200 kWh (simulation)</span>
+    </div>
+    <nav>
+      <a href="#previsions">Prévisions</a>
+      <a href="#simulation">Simulation</a>
+      <a href="#agent">Agent</a>
+      <a href="/docs" target="_blank">API</a>
+    </nav>
+  </header>
+
+  <dl class="strip" id="kpis"></dl>
+
+  <main>
+    <section id="previsions" class="panel">
+      <div class="panel-head">
+        <h2>1. Prévisions — période de test</h2>
+        <label class="inline">Jours
+          <select id="forecastDays">
+            <option value="3">3</option><option value="7" selected>7</option><option value="14">14</option>
+          </select>
+        </label>
+      </div>
+      <p class="note">Demande : London Smart Meters (mesurée) et régression linéaire. Production PV : estimée à partir
+        de l'irradiance HI-SEAS (mesurée) et du LSTM. Pointillés = prévisions.</p>
+      <div class="chart tall"><canvas id="forecastChart"></canvas></div>
+    </section>
+
+    <section id="simulation" class="panel">
+      <div class="panel-head">
+        <h2>2. Simulation des stratégies de tarification</h2>
+      </div>
+      <p class="note">Le tarif est choisi à partir des prévisions ; la simulation utilise la demande et la production réelles.
+        Les écarts sont donnés par rapport au tarif fixe de 0,20 €/kWh.</p>
+
+      <div class="sim-layout">
+        <form id="simForm" class="params">
+          <h3>Paramètres</h3>
+          <label>Élasticité de la demande <output id="elasticityOut">−0,20</output>
+            <input type="range" id="elasticity" min="-0.5" max="0" step="0.05" value="-0.2">
+          </label>
+          <label>Capacité de la batterie <output id="batteryOut">200 kWh</output>
+            <input type="range" id="battery" min="0" max="500" step="10" value="200">
+          </label>
+          <label>Puissance crête PV <output id="pvOut">150 kWc</output>
+            <input type="range" id="pvPeak" min="0" max="300" step="10" value="150">
+          </label>
+          <label>Jours affichés <output id="daysOut">3</output>
+            <input type="range" id="days" min="1" max="10" step="1" value="3">
+          </label>
+          <button type="submit" id="simButton">Simuler</button>
+          <p class="hint">L'agent a été entraîné avec e = −0,2 et n'est pas ré-entraîné quand les paramètres changent.</p>
+        </form>
+
+        <div class="sim-results">
+          <dl class="deltas" id="deltas"></dl>
+          <div class="tabs" id="strategyTabs"></div>
+          <div class="chart"><canvas id="energyChart"></canvas></div>
+          <div class="chart short"><canvas id="priceChart"></canvas></div>
+        </div>
+      </div>
+
+      <h3 class="table-title">Indicateurs sur les 415 heures de test</h3>
+      <div class="table-wrap"><table id="simTable"></table></div>
+    </section>
+
+    <section id="agent" class="panel">
+      <div class="panel-head">
+        <h2>3. Tarif proposé par l'agent (réseau dense)</h2>
+      </div>
+      <div class="agent-layout">
+        <form id="agentForm" class="params">
+          <label>Demande prévue (kWh) <input type="number" id="aDemand" value="65" min="0" step="1"></label>
+          <label>Production PV prévue (kWh) <input type="number" id="aPv" value="5" min="0" step="1"></label>
+          <label>Heure (0–23) <input type="number" id="aHour" value="19" min="0" max="23" step="1"></label>
+          <button type="submit">Calculer</button>
+          <p class="hint">Sans historique : l'heure est considérée comme « dans la moyenne » des 24 dernières heures.</p>
+        </form>
+        <div class="agent-out">
+          <dl class="readout">
+            <dt>Tarif proposé</dt><dd id="tariffValue">—</dd>
+            <dt>Écart prévu</dt><dd id="tariffBalance">—</dd>
+          </dl>
+          <div class="chart short"><canvas id="probaChart"></canvas></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Données mesurées : consommation (Low Carbon London, via Kaggle), irradiance (HI-SEAS, Hawaï, dates décalées 2016 → 2013).
+      Estimé : production PV. Supposé : réaction au prix. Simulé : batterie, réseau et tarifs.</span>
+    <span>Serine, Hadjer, Asma · <span id="status">API : connexion…</span></span>
+  </footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>

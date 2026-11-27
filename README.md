@@ -10,7 +10,7 @@ Projet de Data Mining : équilibrer l'offre solaire et la demande des foyers d'u
 
 Les prévisions des deux premiers modèles alimentent l'agent de tarification, évalué dans un micro-réseau **simulé** (100 foyers, 150 kWc de panneaux, batterie de 200 kWh) et comparé à un tarif fixe et à une règle heures pleines / heures creuses.
 
-Rapport : [`reports/rapport_technique.docx`](reports/rapport_technique.docx) et [`.pdf`](reports/rapport_technique.pdf). Architecture : [`docs/architecture.md`](docs/architecture.md).
+Rapport : [`reports/rapport_technique.docx`](reports/rapport_technique.docx) et [`.pdf`](reports/rapport_technique.pdf). Présentation : [`reports/presentation_smart_grid.pptx`](reports/presentation_smart_grid.pptx). Architecture : [`docs/architecture.md`](docs/architecture.md).
 
 ## Structure
 
@@ -30,8 +30,11 @@ smart-grid-project/
 │   └── pipeline.py      # enchaînement des 3 modèles
 ├── models_saved/        # modèles entraînés (non versionnés)
 ├── tests/               # tests unitaires (pytest)
-├── app/demo.py          # démonstration Streamlit
-├── reports/             # rapport technique, figures, tableau de résultats
+├── app/
+│   ├── backend/api.py   # interface web : API REST (FastAPI)
+│   ├── frontend/        # interface web : page HTML / CSS / JavaScript
+│   └── demo.py          # démonstration Streamlit
+├── reports/             # rapport technique, présentation, figures, tableau de résultats
 └── docs/architecture.md
 ```
 
@@ -79,9 +82,23 @@ python -m src.data.preprocess          # recrée data/processed à partir de dat
 python -m src.pipeline                 # enchaîne les 3 modèles (régression et LSTM sauvegardés)
 python -m src.pipeline --retrain       # ré-entraîne aussi la régression et le LSTM
 python -m src.simulation.run_simulation
-streamlit run app/demo.py              # démonstration (après le notebook 05 ou la pipeline)
+python -m uvicorn app.backend.api:app  # interface web : http://127.0.0.1:8000 (API : /docs)
+streamlit run app/demo.py              # démonstration Streamlit
 pytest                                 # tests unitaires
 ```
+
+## Interface web
+
+Après le notebook 05 (ou `python -m src.pipeline`), lancer depuis la racine du projet :
+
+```bash
+python -m uvicorn app.backend.api:app
+```
+
+puis ouvrir http://127.0.0.1:8000.
+
+- **Backend** (`app/backend/api.py`, FastAPI) : charge les modèles entraînés et expose `GET /api/summary`, `GET /api/forecast`, `POST /api/simulate` (élasticité, batterie, puissance des panneaux) et `POST /api/tariff`. Documentation automatique sur `/docs`.
+- **Frontend** (`app/frontend/`, HTML / CSS / JavaScript + Chart.js) : prévisions, simulation interactive des trois stratégies et test de l'agent de tarification.
 
 ## Principaux résultats (jeux de test)
 

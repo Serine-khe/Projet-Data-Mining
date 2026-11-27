@@ -33,6 +33,8 @@ solar_hourly.csv       ─► LSTM (notebook 04) ─► irradiance prévue ─�
 | `src/simulation/microgrid_env.py` | Simulation heure par heure, tarif fixe, règle heures pleines / creuses |
 | `src/simulation/run_simulation.py` | Simulation d'une stratégie, indicateurs, comparaison |
 | `src/pipeline.py` | Enchaînement complet (utilisé aussi par le notebook 05) |
+| `app/backend/api.py` | Interface web, backend : API REST FastAPI (prévisions, simulation, tarif) |
+| `app/frontend/` | Interface web, frontend : page HTML / CSS / JavaScript (Chart.js) qui appelle l'API |
 | `app/demo.py` | Démonstration Streamlit |
 
 ## Interfaces
